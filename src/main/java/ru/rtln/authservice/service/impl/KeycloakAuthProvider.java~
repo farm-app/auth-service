@@ -1,0 +1,120 @@
+package ru.rtln.authservice.authservice.service.impl;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+import ru.rtln.authservice.authservice.model.AuthRequest;
+import ru.rtln.authservice.authservice.model.TokenInfoModel;
+import ru.rtln.authservice.authservice.model.UserInfoModel;
+import ru.rtln.authservice.authservice.redis.repository.RedisUserRepository;
+import ru.rtln.authservice.authservice.service.AuthProvider;
+import ru.rtln.common.security.keycloak.auth.TokenIntrospectModel;
+
+import java.util.List;
+
+import static ru.rtln.authservice.authservice.util.AuthConstant.BEARER;
+import static ru.rtln.authservice.authservice.util.AuthConstant.CLIENT_ID;
+import static ru.rtln.authservice.authservice.util.AuthConstant.CLIENT_SECRET;
+import static ru.rtln.authservice.authservice.util.AuthConstant.GRANT_TYPE;
+import static ru.rtln.authservice.authservice.util.AuthConstant.PASSWORD;
+import static ru.rtln.authservice.authservice.util.AuthConstant.REFRESH_TOKEN;
+import static ru.rtln.authservice.authservice.util.AuthConstant.SCOPE;
+import static ru.rtln.authservice.authservice.util.AuthConstant.TOKEN;
+import static ru.rtln.authservice.authservice.util.AuthConstant.USERNAME;
+
+/**
+ * Keycloak auth provider.
+ */
+@Slf4j
+@Service
+public class KeycloakAuthProvider implements AuthProvider {
+
+    private final RestTemplate restTemplate;
+    private final String clientId;
+    private final String clientSecret;
+    private final String realmName;
+    private final Integer maxFetchSize;
+    private final RedisUserRepository userRepository;
+
+    public KeycloakAuthProvider(@Qualifier("KeycloakRestTemplate") RestTemplate restTemplate,
+                                @Value("${settings.keycloak.client-id}") String clientId,
+                                @Value("${settings.keycloak.client-secret}") String clientSecret,
+                                @Value("${settings.keycloak.realm}") String realmName,
+                                @Value("${settings.keycloak.max-fetch-size-of-users}") Integer maxFetchSize,
+                                RedisUserRepository userRepository) {
+        this.restTemplate = restTemplate;
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.realmName = realmName;
+        this.maxFetchSize = maxFetchSize;
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public TokenInfoModel passwordAuthentication(AuthRequest authRequest) {
+        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+        parameters.add(CLIENT_ID, clientId);
+        parameters.add(CLIENT_SECRET, clientSecret);
+        parameters.add(SCOPE, "openid");
+        parameters.add(GRANT_TYPE, "password");
+        parameters.add(USERNAME, authRequest.getUsername());
+        parameters.add(PASSWORD, authRequest.getPassword());
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, null);
+        return restTemplate.postForObject("/realms/{realm}/protocol/openid-connect/token", request,
+                TokenInfoModel.class, realmName);
+    }
+
+    @Override
+    public TokenInfoModel tokenAuthentication(String refreshToken) {
+        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+        parameters.add(CLIENT_ID, clientId);
+        parameters.add(CLIENT_SECRET, clientSecret);
+        parameters.add(SCOPE, "openid");
+        parameters.add(GRANT_TYPE, "refresh_token");
+        parameters.add(REFRESH_TOKEN, refreshToken);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, null);
+        log.debug("RefreshToken: {}", refreshToken);
+        return restTemplate.postForObject("/realms/{realm}/protocol/openid-connect/token", request,
+                TokenInfoModel.class, realmName);
+    }
+
+    @Override
+    public void logout(String refreshToken) {
+        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+        parameters.add(CLIENT_ID, clientId);
+        parameters.add(CLIENT_SECRET, clientSecret);
+        parameters.add(TOKEN, refreshToken);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, null);
+        restTemplate.postForObject("/realms/{realm}/protocol/openid-connect/revoke", request, String.class,
+                realmName);
+    }
+
+    @Override
+    public TokenIntrospectModel introspectToken(String token) {
+        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+        parameters.add(CLIENT_ID, clientId);
+        parameters.add(CLIENT_SECRET, clientSecret);
+        parameters.add(TOKEN, token);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, null);
+        log.debug("AccessToken: {}", token);
+        return restTemplate.postForObject("/realms/{realm}/protocol/openid-connect/token/introspect",
+                request, TokenIntrospectModel.class, realmName);
+    }
+
+    @Override
+    public List<UserInfoModel> getUsers(String accessToken) {
+        MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
+        headers.add(HttpHeaders.AUTHORIZATION, BEARER + accessToken);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(headers);
+        return restTemplate.exchange("/admin/realms/{realm}/users?max={max}", HttpMethod.GET, request, new ParameterizedTypeReference<List<UserInfoModel>>() {
+        }, realmName, maxFetchSize).getBody();
+    }
+}

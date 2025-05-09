@@ -1,0 +1,58 @@
+server:
+  port: ${SERVER_PORT:9101}
+  servlet:
+    context-path: /api/auth
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+spring:
+  application:
+    name: auth
+#  config:
+#    import: optional:configserver:http://localhost:8888
+  cloud:
+    config:
+      enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: redis_secret_pass
+
+settings:
+  users-whitelist: andrey_antonov, admin
+  keycloak:
+    uri: ${KEYCLOAK_URI:http://localhost:8081}
+    realm: ${KEYCLOAK_REALM:farm}
+    client-secret: ${CLIENT_SECRET:qzk6jPoAkotlLIWNq4n44nk2uwUPQO4m}
+    client-id: ${CLIENT_ID:farm-app}
+    service-account:
+      username: ${KEYCLOAK_SA_USERNAME:admin}
+      password: ${KEYCLOAK_SA_PASSWORD:12345}
+    max-fetch-size-of-users: ${MAX_FETCH_USER_SIZE:1000}
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+    same-site: ${COOKIE_SAME_SITE:None}
+  security:
+    header-key-name: ${SECRET_KEY_HEADER_NAME:Api-key}
+    auth-service-key: ${SECRET_KEY_AUTH_SERVICE:ES8p3QFFyPEdpnAdYCdDMPGxm4epBMWdEDLbNB8eSBHjxQmNsk2jjz7ATK2wUCEf}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761}/eureka/
+    enabled: false
+  instance:
+    instance-id: ${spring.application.name}:${random.uuid}
+
+logging:
+  pattern:
+    console: '%C{1.} [%-5level] %d{HH:mm:ss.SSS} - %msg%n'
