@@ -4,6 +4,7 @@ WORKDIR /usr/src/app
 COPY . .
 ENTRYPOINT ["sleep"]
 CMD ["3000"]
+RUN chmod +x gradlew
 RUN ./gradlew build --info
 
 FROM openjdk:17
