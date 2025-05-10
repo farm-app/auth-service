@@ -15,22 +15,26 @@ java {
     }
 }
 
+springBoot {
+    mainClass = 'ru.rtln.authservice.AuthServiceApplication'
+}
+
 repositories {
     mavenLocal()
-    maven{
+    mavenCentral()
+    maven {
         url "http://45.141.76.83:9091/repository/maven-snapshots/"
         allowInsecureProtocol = true
     }
-    maven{
+    maven {
         url "http://localhost:9091/repository/maven-snapshots/"
         allowInsecureProtocol = true
     }
-    mavenCentral()
 }
 
 ext {
-    springCloudVersion="2023.0.2"
-    commonVersion="0.0.1-SNAPSHOT"
+    springCloudVersion = "2023.0.2"
+    commonVersion = "0.0.1-SNAPSHOT"
 }
 
 dependencies {

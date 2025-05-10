@@ -1,14 +1,19 @@
-FROM gradle:8.12.1-jdk17 as build
-ENV GRADLE_OPTS="-Dorg.gradle.daemon=false"
-WORKDIR /usr/src/app
-COPY . .
-ENTRYPOINT ["sleep"]
-CMD ["3000"]
-RUN chmod +x gradlew
-RUN ./gradlew build --info
+FROM gradle:8.12.1-jdk17 as cache
+RUN mkdir -p /home/gradle/cache_home
+ENV GRADLE_USER_HOME /home/gradle/cache_home
+COPY build.gradle /home/gradle/java-code/
+WORKDIR /home/gradle/java-code
+RUN gradle clean build -i --stacktrace
+
+FROM gradle:8.12.1-jdk17 as builder
+COPY --from=cache /home/gradle/cache_home /home/gradle/.gradle
+COPY . /usr/src/java-code/
+WORKDIR /usr/src/java-code
+RUN gradle bootJar -i --stacktrace
 
 FROM openjdk:17
-WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
 EXPOSE 8080
+USER root
+WORKDIR /usr/src/java-app
+COPY --from=builder /usr/src/java-code/build/libs/*.jar ./app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
